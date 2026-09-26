@@ -1,0 +1,42 @@
+# ★ 部署前必改：
+#   User=      改成你跑这个服务的账号
+#   WorkingDirectory= / ExecStart= 里的 /opt/spkbrain 改成你实际的路径
+[Unit]
+Description=音箱闹钟 · 到点自己放轻音乐（★ 夜里唯一允许出声的东西）
+Documentation=file:///opt/spkbrain/spk_alarm.py
+# ★★★ 2026-09-23 才建起来。在此之前**没有任何地方在跑 `spk_alarm.main()`** ——
+#   无 unit / 无 timer / 无 cron / 无进程，`spk_ear.py` 也没 import 它。
+#   判据：log/alarm.log 里「闹钟服务起来 —— 表=…」一次都没出现过。
+#   ⇒ 主人说"定个七点的闹钟"，表写进去了、工具回了"定上了"，**到点屋里是死的**。
+#
+# ★ 出声这条路要两样东西，所以顺序得排对：
+#   ① mp3 得有人用 HTTP 端出来 —— 设备是去 GET `192.168.1.100:8899/<file>` 拿音频的
+#      （见 spk_ai_dlna.STAGE_DIR 的注释：8899 静态服务器的根就是 /tmp）
+#   ② 命令得送得到设备 —— 走 spk-netd 那条无线命令通道
+After=network-online.target spk-netd.service spkbrain-mp3.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spkbrain
+Group=spkbrain
+WorkingDirectory=/opt/spkbrain
+ExecStart=/opt/spkbrain/.venv/bin/python /opt/spkbrain/spk_alarm.py
+# 跟 spk-ear 同款 PATH（edge-tts 在 ~/.local/bin）。这条链眼下不用 TTS，
+# 但 spk_ctl 的 import 链哪天多一个依赖就会踩，先把 PATH 铺对再说。
+Environment=PATH=/home/spkbrain/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ★ 日志必须不缓冲（spk-ear 踩过一次）：stdout 接 journal 是块缓冲，
+#   日志时间戳会比真实时刻晚十几秒 —— 那样事后根本查不出"到底几点响的"。
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+# 比 spk-ear(-200) 低一档：两个都要保，但真抢内存时先保实时任务（耳朵）。
+# 闹钟被 OOM 掉还有 RestartSec=5 兜着，耳朵被掉就是"喊它不应"。
+OOMScoreAdjust=-100
+NoNewPrivileges=true
+# 只写自己的 log/ 和自己的 alarms.json，不需要任何多余权限
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

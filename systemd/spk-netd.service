@@ -1,0 +1,22 @@
+# ★ 部署前必改：
+#   User=      改成你跑这个服务的账号
+#   WorkingDirectory= / ExecStart= 里的 /opt/spkbrain 改成你实际的路径
+[Unit]
+Description=音箱无线命令通道 · 大脑侧（设备主动来拉，替代 USB 上的 adb）
+Documentation=file:///opt/spkbrain/spk_netd.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spkbrain
+WorkingDirectory=/opt/spkbrain
+ExecStart=/usr/bin/python3 /opt/spkbrain/spk_netd.py
+Restart=always
+RestartSec=5
+# 只监听 LAN —— 跟 [[web-services-lan-only]] 那条规矩一致
+# ★ 改成你这台机在局域网里的地址（示例 192.168.1.100）
+Environment=SPK_NET_BIND=192.168.1.100
+
+[Install]
+WantedBy=multi-user.target

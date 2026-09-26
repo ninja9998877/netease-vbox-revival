@@ -1,0 +1,37 @@
+# ★ 部署前必改：
+#   User=      改成你跑这个服务的账号
+#   WorkingDirectory= / ExecStart= 里的 /opt/spkbrain 改成你实际的路径
+[Unit]
+Description=音箱的耳朵和脑子 —— 唤醒词/本地ASR/DeepSeek/回话（全程不经网易）
+Documentation=file:///opt/spkbrain/spk_ear.py
+# ★ 它要独占 UDP 9998 收音箱的麦克风流，所以必须在网络就绪之后、且只能有一个。
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spkbrain
+Group=spkbrain
+WorkingDirectory=/opt/spkbrain
+ExecStart=/opt/spkbrain/.venv/bin/python /opt/spkbrain/spk_ear.py
+# ★ edge-tts 装在 ~/.local/bin，systemd 的默认 PATH 里没有它 ——
+#   少了这行，唤醒、识别、想答案全对，只有最后"念出来"那一步 FileNotFoundError，
+#   从日志上看像是"它不说话了"，跟语音链路半点关系没有。（2026-09-21 实测踩到）
+Environment=PATH=/home/spkbrain/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ★★ 缓冲必须关（2026-09-21 深夜踩到）：spk_ai_dlna 里那些 print() 没有 flush，
+#   stdout 接 journal 时是【块缓冲】，日志会攒够一大块才一起吐出来 ——
+#   时间戳比真实时刻晚十几秒。我据此把“回答慢”错记到 tts() 头上（实测 tts 稳定 2.4s），
+#   而真凶是 SSDP。日志的时间戳一旦不可信，整条排查链都是错的。
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+# 唤醒词检测是实时任务，被 OOM 杀掉就等于"喊它不应"，优先保它
+OOMScoreAdjust=-200
+NoNewPrivileges=true
+# ★ 日志走 journal（不是 /tmp）：这台机器 fs.protected_regular=2，
+#   sticky 世界可写目录里的日志文件换用户写会被 EACCES（见 spk_ai_dlna.py 的 SRVLOG 注释）
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

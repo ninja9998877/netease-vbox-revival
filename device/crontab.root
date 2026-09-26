@@ -1,0 +1,7 @@
+# 音箱健康自检 —— 由设备【自己的】/etc/rc.d/S50cron 在开机时拉起，完全不经 run.sh。
+# ★ 存在理由：muxguard/nightmute/netguard 都是常驻进程，崩了就没人管；
+#   而这台音箱【每次开机混音器默认就是全哑档 [1]】⇒ 守卫一死 = 永久哑、且不报错。
+#   本文件落在 /overlay（rootfs_data, ext4, 持久）；run.sh 里另有一份还原兜底。
+* * * * * /mnt/UDISK/spk/spkcheck.sh
+# 心跳：把最后一次 cron 滴答写进 tmpfs（一行、不磨损 NAND），用来证明 crond 真的在跑
+* * * * * date '+%m-%d %H:%M:%S' > /tmp/cron.proof

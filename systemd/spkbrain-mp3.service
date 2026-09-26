@@ -1,0 +1,47 @@
+# ★ 部署前必改：
+#   User=      改成你跑这个服务的账号（本 unit 现在没写 User=，即以 root 跑；
+#              要换账号就自己加一行 User=）
+#   WorkingDirectory= / ExecStart= 里的 /opt/spkbrain 改成你实际的路径
+#
+# DLNA 取音频用的静态服务器 —— 音箱的"嗓子"要从这儿把 mp3 拿走
+#
+# 为什么需要一个 HTTP 服务器：DLNA 的 AVTransport 只接受一个 URI，音箱会自己去 GET。
+# 所以 edge-tts 合成的 mp3 必须有个地方能被它取到。
+#
+# ★ 三个细节是这个服务的全部要害，动它之前先看清楚：
+#   1. 【日志路径 = spk_ai_dlna.py 里的 SRVLOG，两边必须一致】。判断"推流成没成"的判据
+#      不是 SOAP 回了 200（那个经常骗人），而是【日志里出现了它来取文件的 GET】。
+#      所以 http.server 的访问日志就是成功判据本身，不能重定向到别处、不能关掉。
+#   2. 【日志绝不能落在 /tmp】—— 这条踩过，写下来免得再踩：
+#      本机 fs.protected_regular=2，/tmp 是 sticky 世界可写目录。本服务以 root 跑，
+#      而 root 在那种目录里以 O_CREAT 打开【属于别人的已存在文件】会被内核直接 EACCES，
+#      systemd 报 "Failed to set up standard output: Permission denied"、退出码 209/STDOUT，
+#      服务就 2 秒一重启地刷失败（restart counter 一路涨到 20+）。
+#      放 /opt/spkbrain/log/ 不是 sticky 目录，不受这条规则管。
+#   3. 【必须绑本机 LAN 地址（示例 192.168.1.100）而不是 0.0.0.0】。音箱（示例 192.168.1.50）
+#      同网段直达即可，没有理由把临时音频文件暴露给整个局域网。端口只在这个地址上听。
+#
+# WorkingDirectory 留在 /tmp：mp3 是一次性的，重启自然清干净（只有【日志】搬走了）。
+#
+# 装法：sudo cp .../spkbrain-mp3.service /etc/systemd/system/
+#       sudo systemctl daemon-reload && sudo systemctl enable --now spkbrain-mp3
+
+[Unit]
+Description=音箱嗓子用的静态服务器 · DLNA 取 mp3（本机 LAN 地址:8899，日志即成功判据）
+Documentation=file:/opt/spkbrain/spk_ai_dlna.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/tmp
+ExecStart=/usr/bin/python3 /opt/spkbrain/mp3srv.py
+Restart=always
+RestartSec=2
+TimeoutStopSec=5
+# 故意不是 journal —— 见文件头第 1 条：这个日志文件本身就是判据，say() 要读它。
+StandardOutput=append:/opt/spkbrain/log/spk_srv.log
+StandardError=append:/opt/spkbrain/log/spk_srv.log
+
+[Install]
+WantedBy=multi-user.target

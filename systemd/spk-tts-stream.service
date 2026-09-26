@@ -1,0 +1,25 @@
+# ★ 部署前必改：
+#   User=      改成你跑这个服务的账号
+#   WorkingDirectory= / ExecStart= 里的 /opt/spkbrain 改成你实际的路径
+[Unit]
+Description=音箱流式 TTS 端点 · 设备边下边播（spk_ear 推 URL，设备 GET /tts/<sid> 边吐边等）
+Documentation=file:///opt/spkbrain/spk_tts_stream.py
+After=network-online.target
+Wants=network-online.target
+# ★ 不写死对 spk-ear 的 Before/After：端点不在时 spk_ear 会退回整段合成
+#   （铁律「快路不许成为唯一的路」），靠兜底比靠启动顺序稳。
+
+[Service]
+Type=simple
+User=spkbrain
+WorkingDirectory=/opt/spkbrain
+ExecStart=/opt/spkbrain/.venv/bin/python /opt/spkbrain/spk_tts_stream.py
+Restart=always
+RestartSec=5
+# 只监听 LAN —— 跟 [[web-services-lan-only]] 那条规矩一致。
+# ★ key 走同目录 .qwen_key（0600），**不放环境变量**。
+# ★ 改成你这台机在局域网里的地址（示例 192.168.1.100）
+Environment=SPK_TTS_STREAM_IP=192.168.1.100
+
+[Install]
+WantedBy=multi-user.target
