@@ -10,15 +10,22 @@
 
 ★ 三方，各管一段，谁都不越界
   ① 音箱模型（spk_skills.ask_for_help）—— 判断"我办不了"，交上来，回一句"我去问问"
-  ② 守护 spk_helpd.py —— 出方案、推 TG、等主人按按钮；★ 批准了才动
-  ③ Claude（claude -p）—— 出方案、真去干活（下载、整理、放好）
+  ② 守护进程 —— 出方案、推给主人、等主人按按钮；★ 批准了才动
+  ③ 能力更强的那个模型（`claude -p`）—— 出方案、真去干活（下载、整理、放好）
+
+★ 本仓库带的是 ①（音箱这一侧）与 ②③ 之间那份**契约** —— 就是下面这个状态机
+  加上这套文件队列。②那个守护进程**不随本仓库分发**：它是作者那台的私人后端，
+  连着作者自己的推送渠道与审批按钮。你要接，照这个状态机写一个就行：
+  `submit()` 交上来 → 你出方案后推到 `proposed` → 主人点头改成 `approved` →
+  干完写 `done` 并 `archive()`。
+  ★ 别改字段名：①③ 都按下面每个函数的 docstring 读（那两份才是契约的真身）。
 
 ★ 主人是最高决策者。没有他按那一下，② 一步都不动 —— 这条不是礼貌，是纪律：
   管道另一头连着"往家里下载东西"这件有后果的事。
 
 ★ 状态机（写在文件里，三方都读同一份，不靠内存传话）
   pending  → 音箱刚交上来
-  proposed → 方案已出、TG 已推给主人，等他按按钮
+  proposed → 方案已出、已推给主人，等他按按钮
   approved → 主人点了同意，正在干
   denied   → 主人点了不同意
   done     → 干完了，结果在 result
@@ -57,7 +64,7 @@ def new_id():
 
 def _path(qid):
     """★ qid 要过一遍白名单正则：它会进路径。虽然现在 qid 都是自己生成的，
-    但 decide 那条路上有机会从 TG 文本里解析 id —— 那种地方一旦拼进路径就是洞。"""
+    但 decide 那条路上有机会从审批文本里解析 id —— 那种地方一旦拼进路径就是洞。"""
     if not re.match(r'^[0-9a-zA-Z\-]{8,40}$', str(qid or '')):
         raise ValueError('qid 不合法：%r' % (qid,))
     return os.path.join(QUEUE, qid + '.json')
@@ -86,7 +93,7 @@ def save(d):
 def submit(ask, detail=None, source='音箱', kind='music'):
     """音箱交一条请求上来。返回 (id 或 None, 给人/模型看的一句话)。
 
-    `kind` 决定这条走哪套执行壳（`spk_helpd` 里按它分岔）：
+    `kind` 决定这条走哪套执行壳（求助后端里按它分岔）：
       · `'music'`（默认）—— 老路，一字不动：找曲子/下载，cwd 锁在音乐库
       · `'capability'` —— 给音箱装一样新本事（写 `ext/*.py`），cwd 是 spkbrain
     ★ 默认必须是 `music`：库里早就躺着的历史条目没有这个字段，读出来是 `None`，
@@ -113,12 +120,12 @@ def submit(ask, detail=None, source='音箱', kind='music'):
         'announce': '',
         # ★★ 两条线各自记账："这条我报过主人了没有"。
         #   为什么要分开记：装能力是**音箱的本事**（`ext/*.py` 跑在 spk-ear 里），
-        #   所以电话发起的也要给音箱报一份（主人 2026-09-23 原话）；
-        #   而两条线的出口完全不同（音箱 0x601 / 电话 AudioSocket），
-        #   谁报过谁记账，互不顶替 —— 否则报了电话就漏了音箱。
+        #   所以那个壳发起的也要给音箱报一份（主人 2026-09-23 原话）；
+        #   而两条线的出口完全不同（音箱 0x601 / 那个壳自己的音频通道），
+        #   谁报过谁记账，互不顶替 —— 否则报了那条线就漏了音箱。
         'told_speaker_at': '',
         'told_phone_at': '',
-        'tg_msg_id': None,
+        'notice_id': None,
         'decision': '',
         'decided_at': '',
     }
@@ -162,7 +169,7 @@ def finish(qid, result, ok=True, announce=''):
     `announce` = 【念给主人听的那一句】，跟 `result` 分开存。
     ★ 为什么要分开：`result` 里混着技术诊断（`cap_verdict` 的判定说明、
       文件清单这类），念出来主人只会莫名其妙 —— 而播报那张嘴要的是**一句人话**。
-      音箱线 / 电话线播报时**只读 `announce`**，读不到就不播（宁可不说，别念诊断）。
+      音箱线 / 那个壳播报时**只读 `announce`**，读不到就不播（宁可不说，别念诊断）。
     """
     d = load(qid)
     if not d:
@@ -232,7 +239,7 @@ def expired(d, now=None):
 def _entry_path(qid):
     """条目在哪儿 —— `queue/` 里没有就去 `done/` 找。
 
-    ★ 归档之后还要记账（`spk_helpd` 装完就 `archive()`），所以两个地方都得认。
+    ★ 归档之后还要记账（求助后端装完就 `archive()`），所以两个地方都得认。
     ★ qid 仍然走 `_path()` 过一遍白名单正则 —— 它会进路径，没有例外。
     """
     p = _path(qid)
@@ -246,9 +253,9 @@ def mark_told(qid, who):
     """记一笔"这条我报过主人了"。`who` ∈ `'speaker'` / `'phone'`。
 
     ★ 为什么这笔记账非有不可：装能力是**音箱的本事**（`ext/*.py` 跑在 spk-ear 里），
-      所以**两条线都要报一遍**（主人 2026-09-23：「手机发起的能力学习 给音箱也发一份」），
-      而两条线的出口完全不同。没有记账就会"音箱报了三遍"或"电话报了音箱不知道"。
-    ★ 为什么落在文件上而不是内存里：`spk_ear` 和电话线那套是两个进程、都会重启，
+      所以**两条线都要报一遍**（主人 2026-09-23 定：另一条线发起的能力学习，给音箱也发一份），
+      而两条线的出口完全不同。没有记账就会"音箱报了三遍"或"那条线报了音箱不知道"。
+    ★ 为什么落在文件上而不是内存里：`spk_ear` 和那个壳是两个进程、都会重启，
       内存里记 = 重启之后重复播报。
     """
     if who not in ('speaker', 'phone'):
@@ -288,7 +295,7 @@ def told(qid, who):
 def pending_announce(who, scan=8, window=6 * 3600):
     """有哪些"装成了、还没跟我这条线报过"的。
 
-    ★ 装完 `spk_helpd` 就 `archive()` ⇒ 主要看 `done/`。
+    ★ 装完就 `archive()` ⇒ 主要看 `done/`。
     ★ 只扫**尾巴几个**（文件名是时间戳开头 ⇒ 字典序就是时间序）：这个函数会被
       两条线每隔几秒调一次，扫全目录迟早变成瓶颈。
     ★ `window` 另算（不是 `TTL`）：一条六小时前的旧闻不该现在才响。
@@ -308,7 +315,7 @@ def pending_announce(who, scan=8, window=6 * 3600):
         except (OSError, ValueError):
             continue
         # ★ 失败也要报（`failed` 照样进）—— 装砸了却不吭声，主人就会像
-        #   2026-09-23 那通电话里一样干等。话术由播报那边按 status 分岔。
+        #   2026-09-23 那条线上一样干等。话术由播报那边按 status 分岔。
         if d.get('status') not in ('done', 'failed') or d.get('kind') != 'capability':
             continue
         if not d.get('announce') or d.get('told_%s_at' % who):

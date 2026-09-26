@@ -56,7 +56,7 @@ def corpus(files=None):
     out += sorted(glob.glob(os.path.join(DATA_DIR, 'capture',
                                          '20260921-100025', 'mic_00*.wav')))
     phone = os.environ.get('SPK_PHONE_REC_DIR')
-    if phone:                       # 电话线那套的录音（不在本仓库里，配了才收）
+    if phone:                       # 另一个壳那套的录音（不在本仓库里，配了才收）
         out += sorted(glob.glob(os.path.join(phone, '*-in.wav')))
     out += sorted(glob.glob(os.path.join(HERE, 'asr', 'kwtest', '*.wav')))
     for x in ('/tmp/spk_ear_last.wav', '/tmp/spk_e2e_q.wav'):

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Qwen 音色探测：拿到 key 后跑这个，选出电话线该用哪只嗓子。
+"""Qwen 音色探测：拿到 key 后跑这个，选出另一个壳该用哪只嗓子。
 
 ★ 为什么必须实测而不是照抄文档：阿里文档写着「每个模型仅支持特定的一组音色，
   不能混用」，而**能听 instructions 的 Instruct 系列到底认哪些音色，文档没列全**
   （Ethan/Dylan 那几个在文档里被归到"实时版音色列表"里）。所以别猜 ——
   逐个打一遍：谁真能用、谁的韵律最活，数据说话。
 
-★ 全程不出声：只写 /tmp/qwen_voices/，不推流、不碰电话线、不碰音箱、不占声卡。
+★ 全程不出声：只写 /tmp/qwen_voices/，不推流、不碰另一个壳、不碰音箱、不占声卡。
 
 用法：
     DASHSCOPE_API_KEY=sk-xxx python3 qwen_voice_probe.py

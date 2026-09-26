@@ -52,7 +52,7 @@ FACTS = os.path.join(DIR, 'facts.json')          # L2：挑出来的核心记忆
 PENDING = os.path.join(DIR, 'pending.jsonl')
 PENDING_LOCK = os.path.join(DIR, 'pending.lock')
 # ★★ facts.json 的【独立】锁（2026-09-23 加）。非有不可的理由：现在有**两个进程**
-#   会在收工时抽记忆 —— 音箱（spk-ear）和电话线那套。而 `remember()` 是
+#   会在收工时抽记忆 —— 音箱（spk-ear）和另一个壳那套。而 `remember()` 是
 #   【读全部 → 改 → 写回】，两头同时来就是"后写的把先写的整段覆盖"，
 #   而且**两边都不会报错**（归档写了、facts 少了一条，没人会去查）。
 #   ★★★ 绝不能复用 `PENDING_LOCK`：`drain_pending()` 持着它、并在里面调 `remember()`，
@@ -967,7 +967,7 @@ def main():
                 print('  [%s] %s' % ('严重' if lv == 'E' else '警告', t))
         else:
             print('\n一切正常。')
-        # ★ 退出码有意义：有"严重"才回 1 —— 将来挂 cron / TG 告警靠它，
+        # ★ 退出码有意义：有"严重"才回 1 —— 将来挂 cron / 告警靠它，
         #   而"警告"（比如预算用光）不该把人半夜叫起来。
         return 1 if any(lv == 'E' for lv, _ in problems) else 0
     if '--history' in args:

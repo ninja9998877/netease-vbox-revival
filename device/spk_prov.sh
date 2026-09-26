@@ -2,7 +2,7 @@
 # spk_prov.sh —— 音箱配网：进热点 → 等人填 → 试连 → 连上 macmini 才算成功。
 #
 # 【形态】★ 一次性执行，不是常驻守护。被触发者用 start-stop-daemon -S -b 起，跑完就退：
-#     · 长按顶部键（P5 的 spk_provkey.sh 监听 event2 的 KEY_HOME）
+#     · 长按顶部键（一个常驻脚本在监听 event2 的 KEY_HOME）
 #     · 或 macmini 经 8898 下一句 `sh /mnt/UDISK/spk/spk_prov.sh`
 #   常驻的那个是【触发者】，不是本脚本 —— 本脚本只在"要配网"时活几分钟。
 #
